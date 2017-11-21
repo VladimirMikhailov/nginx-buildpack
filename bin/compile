@@ -10,6 +10,7 @@ main() {
     : ${NGINX_VERSION:=1.12.1}
     : ${NGINX_PCRE_VERSION:=8.41}
     : ${NGINX_HEADERS_MORE_VERSION:=0.32}
+    : ${NGINX_PAGE_SPEED_VERSION:=1.12.34.3-stable}
 
     set -eo pipefail
 
@@ -50,6 +51,7 @@ build-nginx() {
     declare nginx_url=http://nginx.org/download/nginx-$NGINX_VERSION.tar.gz
     declare pcre_url=http://downloads.sourceforge.net/project/pcre/pcre/$NGINX_PCRE_VERSION/pcre-$NGINX_PCRE_VERSION.tar.bz2
     declare headers_more_url=https://github.com/agentzh/headers-more-nginx-module/archive/v$NGINX_HEADERS_MORE_VERSION.tar.gz
+    declare nginx_page_speed_url=https://github.com/pagespeed/ngx_pagespeed/archive/v$NGINX_PAGE_SPEED_VERSION.tar.gz
 
     (
         set-indent
@@ -62,12 +64,21 @@ build-nginx() {
         curl -#L $pcre_url | tar xj
         curl -#L $headers_more_url | tar xz
 
+        curl -#L $nginx_page_speed_url | tar xz
+        cd ngx_pagespeed-$NGINX_PAGE_SPEED_VERSION
+        NPS_RELEASE_NUMBER=${NPS_VERSION/stable/}
+        psol_url=https://dl.google.com/dl/page-speed/psol/${NPS_RELEASE_NUMBER}.tar.gz
+        [ -e scripts/format_binary_url.sh ] && psol_url=$(scripts/format_binary_url.sh PSOL_BINARY_URL)
+        curl -#L $psol_url | tar xz
+
+        cd ..
         patch -p1 < $BUILDPACK_DIR/nginx-1.5.12-heroku.patch
 
         CFLAGS="-O3 -pipe" ./configure \
             --prefix=$nginx_install_dir \
             --with-pcre=pcre-$NGINX_PCRE_VERSION \
             --add-module=$PWD/headers-more-nginx-module-$NGINX_HEADERS_MORE_VERSION \
+            --add-module=$PWD/ngx_pagespeed-$NGINX_PAGE_SPEED_VERSION \
             --with-http_addition_module \
             --with-http_dav_module \
             --with-http_gzip_static_module \
